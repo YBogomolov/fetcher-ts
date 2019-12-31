@@ -1,5 +1,5 @@
 {
-  "name": "fetcher",
+  "name": "fetcher-ts",
   "version": "1.0.0",
   "description": "REST HTTP client built in functional style",
   "files": [
