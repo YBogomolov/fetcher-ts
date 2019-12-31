@@ -19,11 +19,9 @@ type Handled<T, Code extends number> =
 
 type Data<T, Code extends number> = T extends Result<infer C, infer D> ? C extends Code ? D : never : never;
 
-type Codes<T> = T extends Result<infer C, any> ? C : never;
-
-type HandlersMap<TResult, To> = Map<
-  Codes<TResult>,
-  [(data: Data<TResult, Codes<TResult>>) => To, io.Type<Data<TResult, Codes<TResult>>> | undefined]
+type HandlersMap<TResult extends Result<any, any>, To> = Map<
+  TResult['code'],
+  [(data: Data<TResult, TResult['code']>) => To, io.Type<Data<TResult, TResult['code']>> | undefined]
 >;
 
 /**
@@ -87,7 +85,7 @@ export class Fetcher<TResult extends Result<any, any>, To> {
    * (so it's not possible to register another handler for it)
    * @memberof Fetcher
    */
-  handle<Code extends Codes<TResult>>(
+  handle<Code extends TResult['code']>(
     code: Code,
     handler: (data: Data<TResult, Code>) => To,
     codec?: io.Type<Data<TResult, Code>>,
@@ -135,7 +133,7 @@ export class Fetcher<TResult extends Result<any, any>, To> {
     try {
       const response = await this.fetch(this.input, this.init);
 
-      const status = response.status as Codes<TResult>;
+      const status = response.status as TResult['code'];
       const pair = this.handlers.get(status);
 
       if (pair != null) {
