@@ -9,21 +9,22 @@ import { Fetcher } from '../src/fetcher';
   type FourTwoTwo = { code: number; correlationId: string };
 
   type GetUserResult =
-    | { code: 200, data: User[] }
-    | { code: 400, data: Error }
-    | { code: 401, data: [Error, string] }
-    | { code: 422, data: FourTwoTwo };
+    | { code: 200, payload: User[] }
+    | { code: 400, payload: Error }
+    | { code: 401, payload: [Error, string] }
+    | { code: 422, payload: FourTwoTwo };
 
-  const TUser = io.array(io.type({ name: io.string }));
+  const TUsers = io.array(io.type({ name: io.string }));
+  const TFourTwoTwo = io.type({ code: io.number, correlationId: io.string });
 
-  const [s, errors] = await new Fetcher<GetUserResult, string>('https://g.com')
-    .handle(200, (users) => users.map((u) => u.name).join(', '), TUser)
+  const [n, errors] = await new Fetcher<GetUserResult, string>('https://example.com')
+    .handle(200, (users) => users.map((u) => u.name).join(', '), TUsers)
     .handle(400, (err) => err.message)
-    .handle(422, ({ correlationId }) => correlationId)
-    .handle(401, ([_err, permission]) => 'You lack ' + permission)
-    // .handle(500, () => `Argument of type '500' is not assignable to parameter of type 'never'`)
+    .handle(422, ({ correlationId }) => correlationId, TFourTwoTwo)
+    .handle(401, ([err, permission]) => `You lack ${permission}. Also, ${err.message}`)
     .discardRest(() => '42')
+    .map((s) => s.length)
     .run();
 
-  console.log(s, errors);
+  console.log(n, errors);
 })();
