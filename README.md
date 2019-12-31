@@ -1,4 +1,4 @@
-# Functional Type-Safe Fetcher
+# Type-Safe Fetcher
 
 ## Motivation
 Aim of this project is to provide a thin type-safe wrapper around [fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API), useful for working with JSON REST APIs.
