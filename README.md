@@ -98,7 +98,7 @@ Please note that you'll need to pass type parameters to the constructor as well 
 type MyMethodResults = 
   | { code: 200, payload: string[] } 
   | { code: 500, payload: Error };
-const fetcher = new Fetcher<MyMethodResults, string>();
+const fetcher = new Fetcher<MyMethodResults, string>('https://example.com');
 ```
 
 #### .handle(code: number, handler: (data: From) => To): Fetcher<...>
@@ -109,7 +109,7 @@ Register a handler for given `code`. Please note that `code` should be present i
 type MyMethodResults = 
   | { code: 200, payload: string[] } 
   | { code: 500, payload: Error };
-const fetcher = new Fetcher<MyMethodResults, string>()
+const fetcher = new Fetcher<MyMethodResults, string>('https://example.com')
   .handle(400, () => 'no way'); // compilation error: Argument of type '400' is not assignable to parameter of type 'never'
 ```
 
@@ -121,7 +121,7 @@ Register a fallback handler for all HTTP status codes not registered explicitly 
 type MyMethodResults = 
   | { code: 200, payload: string[] } 
   | { code: 500, payload: Error };
-const fetcher = new Fetcher<MyMethodResults, string>()
+const fetcher = new Fetcher<MyMethodResults, string>('https://example.com')
   .handle(200, (strings) => string.join(', '))
   .discardRest(() => 'no way'); // code 500 and any other will be handled by this thunk
 ```
@@ -134,7 +134,7 @@ The main method to actually consume the built fetch handling chain and execute t
 type MyMethodResults = 
   | { code: 200, payload: string[] } 
   | { code: 500, payload: Error };
-const [result, validationErrors] = new Fetcher<MyMethodResults, string>()
+const [result, validationErrors] = new Fetcher<MyMethodResults, string>('https://example.com')
   .handle(200, (strings) => string.join(', '))
   .discardRest(() => 'no way')
   .run(); // => result: string, validationErrors: Option<io.Errors>
