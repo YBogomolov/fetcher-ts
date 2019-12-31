@@ -117,7 +117,7 @@ Also an [io-ts](https://gcanti.github.io/io-ts/) codec could be passed for each 
 
 ```ts
 type MyOtherMethod = { code: 400, payload: string }; // this enpoint can only fail with a text of an error :(
-const [result, errors] = new Fetcher<MyOtherMethod, string>('https://example.com/other')
+const [result, errors] = await new Fetcher<MyOtherMethod, string>('https://example.com/other')
   .handle(400, (msg) => `Oh noes, error: ${msg}`, io.string)
   .run();
 // If the server responds not with string, an `io-ts` validation error will be present in `errors` (`Some<Errors>`).
@@ -144,7 +144,7 @@ The main method to actually consume the built fetch handling chain and execute t
 type MyMethodResults = 
   | { code: 200, payload: string[] } 
   | { code: 500, payload: Error };
-const [result, validationErrors] = new Fetcher<MyMethodResults, string>('https://example.com')
+const [result, validationErrors] = await new Fetcher<MyMethodResults, string>('https://example.com')
   .handle(200, (strings) => string.join(', '))
   .discardRest(() => 'no way')
   .run(); // => result: string, validationErrors: Option<io.Errors>
