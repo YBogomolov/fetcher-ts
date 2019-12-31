@@ -1,9 +1,13 @@
 // tslint:disable:no-any
 import { fetch as crossFetch } from 'cross-fetch';
-import * as E from 'fp-ts/lib/Either';
+import { fold } from 'fp-ts/lib/Either';
 import { flow, unsafeCoerce } from 'fp-ts/lib/function';
+import { none, Option, some } from 'fp-ts/lib/Option';
 import { pipe } from 'fp-ts/lib/pipeable';
+import { TaskEither, tryCatch } from 'fp-ts/lib/TaskEither';
 import * as io from 'io-ts';
+
+import { HandlerNotSetError, JsonDeserializationError } from './errors';
 
 export type Result<Code extends number, A> = { code: Code, payload: A };
 
@@ -51,41 +55,65 @@ export class Fetcher<TResult extends Result<any, any>, To> {
     return unsafeCoerce(this);
   }
 
-  discardRest(discardWith: () => To): Fetcher<Handled<TResult, never>, To> {
-    this.restHandler = discardWith;
+  discardRest(restHandler: () => To): Fetcher<Handled<TResult, never>, To> {
+    this.restHandler = restHandler;
 
     return unsafeCoerce(this);
   }
 
-  async run(): Promise<[To, io.Errors | undefined]> {
-    const response = await this.fetch(this.input, this.init);
+  run(): TaskEither<Error, [To, Option<io.Errors>]> {
+    return tryCatch(
+      () => this.runUnsafe(),
+      (reason) => reason instanceof Error ? reason : new Error(`Something went wrong, details: ${reason}`),
+    );
+  }
 
-    const status = response.status as Codes<TResult>;
-    const pair = this.handlers.get(status);
+  async runUnsafe(): Promise<[To, Option<io.Errors>]> {
+    try {
+      const response = await this.fetch(this.input, this.init);
 
-    if (pair != null) {
-      const [handler, codec] = pair;
+      const status = response.status as Codes<TResult>;
+      const pair = this.handlers.get(status);
 
-      const body = await response.json();
-      const to = handler(body);
+      if (pair != null) {
+        const [handler, codec] = pair;
 
-      if (codec) {
-        return pipe(
-          codec.decode(to),
-          E.fold(
-            (errors): [To, io.Errors | undefined] => [to, errors],
-            (res) => [res, void 0],
-          ),
-        );
+        try {
+          const body = await response.json();
+
+          try {
+            const to = handler(body);
+
+            if (codec) {
+              return pipe(
+                codec.decode(to),
+                fold(
+                  (errors) => [to, some(errors)],
+                  (res) => [res, none],
+                ),
+              );
+            }
+
+            return [to, none];
+          } catch (error) {
+            return Promise.reject(new Error(`Handler side error, details: ${error}`));
+          }
+        } catch (jsonError) {
+          return Promise.reject(
+            new JsonDeserializationError(`Could not deserialize response JSON, details: ${jsonError}`),
+          );
+        }
       }
 
-      return [to, void 0];
-    }
+      if (this.restHandler != null) {
+        return [this.restHandler(), none];
+      }
 
-    if (this.restHandler != null) {
-      return [this.restHandler(), void 0];
+      return Promise.reject(
+        new HandlerNotSetError(`Neither handler for ${status} nor rest handler are set - consider adding \`.handle(${status}, ...)\` or \`.discardRest(() => ...)\` calls to the chain`),
+      );
+    } catch (error) {
+      return Promise.reject(error);
     }
-
-    throw new Error(`Neither handler for ${status} nor rest handler are set - consider adding \`.handle(${status}, ...)\` or \`.discardRest(() => ...)\` calls to the chain`);
   }
 }
