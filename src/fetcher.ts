@@ -143,19 +143,17 @@ export class Fetcher<TResult extends Result<any, any>, To> {
           const body = await response.json();
 
           try {
-            const to = handler(body);
-
             if (codec) {
               return pipe(
-                codec.decode(to),
+                codec.decode(body),
                 fold(
-                  (errors) => [to, some(errors)],
-                  (res) => [res, none],
+                  (errors) => [handler(body), some(errors)],
+                  (res) => [handler(res), none],
                 ),
               );
             }
 
-            return [to, none];
+            return [handler(body), none];
           } catch (error) {
             return Promise.reject(new Error(`Handler side error, details: ${error}`));
           }
