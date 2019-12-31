@@ -63,7 +63,83 @@ console.log(n, errors);
 
 ## Public API
 
-TODO
+```ts
+import { Fetcher } from 'fetcher-ts';
+```
+
+A `Fetcher` class is a wrapper around `window.fetch` with additional type safety. Its public API consists of:
+
+### Type parameters: `TResult` and `To`
+
+#### `TResult`
+
+Sum type of possible API endpoint responses. Should consist of a `{ code: number, payload: T }` entries:
+
+```ts
+type MyMethodResults = 
+  | { code: 200, payload: string[] } 
+  | { code: 500, payload: Error };
+```
+
+#### `To`
+
+A type into which the response will be transformed. Could easily be the same type as in `200` response – given that you can construct a fallback instance for all other reponse codes.
+
+### constructor(input: RequestInfo, init?: RequestInit)
+
+Creates a new instance of a `Fetcher` class. Parameters are exactly the same you would normally use for `window.fetch`.
+
+Please note that you'll need to pass type parameters to the constructor as well in order to ensure type inference works correctly:
+
+```ts
+type MyMethodResults = 
+  | { code: 200, payload: string[] } 
+  | { code: 500, payload: Error };
+const fetcher = new Fetcher<MyMethodResults, string>();
+```
+
+#### .handle(code: number, handler: (data: From) => To): Fetcher<...>
+
+Register a handler for given `code`. Please note that `code` should be present in the passed to the constructor type parameter:
+
+```ts
+type MyMethodResults = 
+  | { code: 200, payload: string[] } 
+  | { code: 500, payload: Error };
+const fetcher = new Fetcher<MyMethodResults, string>()
+  .handle(400, () => 'no way'); // compilation error: Argument of type '400' is not assignable to parameter of type 'never'
+```
+
+#### .discardRest(restHandler: () => To): Fetcher<...>
+
+Register a fallback handler for all HTTP status codes not registered explicitly using `.handle()`:
+
+```ts
+type MyMethodResults = 
+  | { code: 200, payload: string[] } 
+  | { code: 500, payload: Error };
+const fetcher = new Fetcher<MyMethodResults, string>()
+  .handle(200, (strings) => string.join(', '))
+  .discardRest(() => 'no way'); // code 500 and any other will be handled by this thunk
+```
+
+#### run(): Promise<[To, Option<io.Errors>]>
+
+The main method to actually consume the built fetch handling chain and execute the request:
+
+```ts
+type MyMethodResults = 
+  | { code: 200, payload: string[] } 
+  | { code: 500, payload: Error };
+const [result, validationErrors] = new Fetcher<MyMethodResults, string>()
+  .handle(200, (strings) => string.join(', '))
+  .discardRest(() => 'no way')
+  .run(); // => result: string, validationErrors: Option<io.Errors>
+```
+
+#### toTaskEither(): TaskEither<Error, [To, Option<io.Errors>]>
+
+A convenience method to transform built fetcher chain into a [TaskEither](https://gcanti.github.io/fp-ts/modules/TaskEither.ts.html).
 
 ### Use cases for this project
 
