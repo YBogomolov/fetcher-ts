@@ -140,7 +140,10 @@ export class Fetcher<TResult extends Result<any, any>, To> {
         const [handler, codec] = pair;
 
         try {
-          const body = await response.json();
+          const contentType = response.headers.get('content-type');
+          const body = contentType?.includes('application/json') ?
+            await response.json() :
+            await response.text();
 
           try {
             if (codec) {
