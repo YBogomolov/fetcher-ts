@@ -1,5 +1,8 @@
 # Type-Safe Fetcher
 
+[![npm](https://img.shields.io/npm/v/fetcher-ts.svg)](https://www.npmjs.com/package/fetcher-ts)
+[![Build Status](https://travis-ci.org/YBogomolov/fetcher-ts.svg)](https://travis-ci.org/YBogomolov/fetcher-ts)
+
 ## Motivation
 Aim of this project is to provide a thin type-safe wrapper around [fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API), useful for working with JSON REST APIs.
 
