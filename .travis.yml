@@ -1,0 +1,23 @@
+language: node_js
+node_js:
+- '10'
+stages:
+- test
+- name: npm release
+  if: tag IS present
+jobs:
+  include:
+  - stage: test
+    script: npm test
+  - stage: npm release
+    if: tag IS present
+    node_js: '12'
+    script: npm run build
+    deploy:
+      provider: npm
+      email: yuriy.bogomolov@gmail.com
+      api_key:
+        secure: DVsWTTDakkZYuqmgNqoGWl7ybrR4lq4z1ALuhqOBwgZbw++AQ51iQtNNGkspJT0avvCOkykqvRoBlhMPQAfWE7mQaaQXBGi4sHXwdr9Ud+ggrD8qjTGFqPz8Qx6C2bDq/JneTtwozuxqALykvSI1zqMrEx0rR+3fCns5AbgBYoR0Tbw6MnyS0LdbDy5z0wVAmtEGXZ9fQCDD9Kwq9klgdWxo9CPSA1dm+ZP07jKYsKNXFev2Z+ElJRpbXaTk45es3ykBe2IcbCUf7gjbPJQ44zrZ+H5qKbcjuJI23uJCK5it9SmwNHSPNu1aWM/jfB9QlrMLR9o5JNta7/uXktmEyGWRXBZ+L6m0b4v+XH7Uqk5vqhRMRMYtOnz7SdobMrSpSzvLVXCh1Qxke8oQ2F0woDIC8D8ScZtLDcwqY9GHbizgWOy3WuKyZN1kohmfjS/PdZnwkmgSaziHq7YhKkqNS/aj2utdmOo903LjKaQDigfIGNwxVjXqv2IJuJ9/Qqg9RbaGNFEvtkY0/mTPyJrBtSf9tGjMqADqE4Gpm8XLcftHbtMm5dLc/8wX2Eq8bB+fU5qZ2XlqUz1racw7lYE9oZPOA8xDWZOTXzTRSzBjlan7hoGuJaPm/ABGkxD1aKu4NyGuuDly+4UWHRbbM8jcy+qATCwLgKh0jKyh3dG9lYA=
+      skip_cleanup: true
+      on:
+        tags: true
