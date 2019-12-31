@@ -12,10 +12,10 @@ Aim of this project is to provide a thin type-safe wrapper around [fetch API](ht
 npm install --save fetcher-ts
 ```
 
-As this project is a part of `fp-ts` ecosystem, you'll also need `fp-ts` and `io-ts` as a peer dependencies:
+As this project is a part of `fp-ts` ecosystem, you'll also need `fp-ts` and `io-ts` as a peer dependencies. And don't forget to install a [cross-fetch](https://github.com/lquixada/cross-fetch) as a peer dependency as well – it provides an isomorphic implementation of `fetch` using `whatwg-fetch` and `node-fetch`:
 
 ```sh
-npm install --save fp-ts io-ts
+npm install --save fp-ts io-ts cross-fetch
 ```
 
 ## Usage example
