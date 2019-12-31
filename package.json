@@ -8,7 +8,7 @@
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "scripts": {
-    "test": "jest",
+    "test": "jest --passWithNoTests",
     "build": "rm -rf ./lib && tsc --build tsconfig.production.json"
   },
   "repository": {
@@ -37,6 +37,7 @@
     "cross-fetch": "^3.0.4",
     "fp-ts": "^2.3.1",
     "io-ts": "^2.0.2",
+    "jest": "^24.9.0",
     "typescript": "^3.7.3"
   },
   "dependencies": {}
