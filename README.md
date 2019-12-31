@@ -101,7 +101,7 @@ type MyMethodResults =
 const fetcher = new Fetcher<MyMethodResults, string>('https://example.com');
 ```
 
-#### .handle(code: number, handler: (data: From) => To): Fetcher<...>
+#### .handle(code: number, handler: (data: From) => To, codec?: io.Type<From>): Fetcher<...>
 
 Register a handler for given `code`. Please note that `code` should be present in the passed to the constructor type parameter:
 
@@ -111,6 +111,16 @@ type MyMethodResults =
   | { code: 500, payload: Error };
 const fetcher = new Fetcher<MyMethodResults, string>('https://example.com')
   .handle(400, () => 'no way'); // compilation error: Argument of type '400' is not assignable to parameter of type 'never'
+```
+
+Also an [io-ts](https://gcanti.github.io/io-ts/) codec could be passed for each handler, providing validation capability for each handler:
+
+```ts
+type MyOtherMethod = { code: 400, payload: string }; // this enpoint can only fail with a text of an error :(
+const [result, errors] = new Fetcher<MyOtherMethod, string>('https://example.com/other')
+  .handle(400, (msg) => `Oh noes, error: ${msg}`, io.string)
+  .run();
+// If the server responds not with string, an `io-ts` validation error will be present in `errors` (`Some<Errors>`).
 ```
 
 #### .discardRest(restHandler: () => To): Fetcher<...>
