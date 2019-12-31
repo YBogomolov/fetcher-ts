@@ -6,7 +6,7 @@ Aim of this project is to provide a thin type-safe wrapper around [fetch API](ht
 ## Installation
 
 ```sh
-npm install --save fetcher
+npm install --save fetcher-ts
 ```
 
 As this project is a part of `fp-ts` ecosystem, you'll also need `fp-ts` and `io-ts` as a peer dependencies:
