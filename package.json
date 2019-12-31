@@ -1,0 +1,39 @@
+{
+  "name": "fetcher",
+  "version": "1.0.0",
+  "description": "REST HTTP client built in functional style",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest",
+    "build": "tsc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YBogomolov/fetcher.git"
+  },
+  "keywords": [
+    "fetch",
+    "fp",
+    "functional",
+    "fp-ts"
+  ],
+  "author": "Yuriy Bogomolov <yuriy.bogomolov@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/YBogomolov/fetcher/issues"
+  },
+  "homepage": "https://github.com/YBogomolov/fetcher#readme",
+  "peerDependencies": {
+    "cross-fetch": "^3.0.4",
+    "fp-ts": "^2.3.1",
+    "io-ts": "^2.0.2"
+  },
+  "devDependencies": {
+    "@types/jest": "^24.0.24",
+    "cross-fetch": "^3.0.4",
+    "fp-ts": "^2.3.1",
+    "io-ts": "^2.0.2",
+    "typescript": "^3.7.3"
+  },
+  "dependencies": {}
+}
