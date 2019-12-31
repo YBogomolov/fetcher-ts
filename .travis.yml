@@ -1,23 +1,11 @@
 language: node_js
 node_js:
-- '12'
-stages:
-- test
-- name: npm release
-  if: tag IS present
-jobs:
-  include:
-  - stage: test
-    script: npm test
-  - stage: npm release
-    if: tag IS present
-    node_js: '12'
-    script: npm run build
-    deploy:
-      provider: npm
-      email: yuriy.bogomolov@gmail.com
-      api_key:
-        secure: DVsWTTDakkZYuqmgNqoGWl7ybrR4lq4z1ALuhqOBwgZbw++AQ51iQtNNGkspJT0avvCOkykqvRoBlhMPQAfWE7mQaaQXBGi4sHXwdr9Ud+ggrD8qjTGFqPz8Qx6C2bDq/JneTtwozuxqALykvSI1zqMrEx0rR+3fCns5AbgBYoR0Tbw6MnyS0LdbDy5z0wVAmtEGXZ9fQCDD9Kwq9klgdWxo9CPSA1dm+ZP07jKYsKNXFev2Z+ElJRpbXaTk45es3ykBe2IcbCUf7gjbPJQ44zrZ+H5qKbcjuJI23uJCK5it9SmwNHSPNu1aWM/jfB9QlrMLR9o5JNta7/uXktmEyGWRXBZ+L6m0b4v+XH7Uqk5vqhRMRMYtOnz7SdobMrSpSzvLVXCh1Qxke8oQ2F0woDIC8D8ScZtLDcwqY9GHbizgWOy3WuKyZN1kohmfjS/PdZnwkmgSaziHq7YhKkqNS/aj2utdmOo903LjKaQDigfIGNwxVjXqv2IJuJ9/Qqg9RbaGNFEvtkY0/mTPyJrBtSf9tGjMqADqE4Gpm8XLcftHbtMm5dLc/8wX2Eq8bB+fU5qZ2XlqUz1racw7lYE9oZPOA8xDWZOTXzTRSzBjlan7hoGuJaPm/ABGkxD1aKu4NyGuuDly+4UWHRbbM8jcy+qATCwLgKh0jKyh3dG9lYA=
-      skip_cleanup: true
-      on:
-        tags: true
+- '12.13'
+deploy:
+  provider: npm
+  email: yuriy.bogomolov@gmail.com
+  api_key:
+    secure: JvRHdc7WyhA7ahqXVEM35nA//QQtOH1DBdEp1tWqD8bJMbGt+PgupO2nu/R0RFqkfpvfjn0ldYY3RQK7DPE672p70RDiCK15I4MXNEa+X45itIHPN0qqjMx8ZTTogzCuf7aPdRDU9+Dra8MFF9RhJW29xNpjqDUfDz2ECGhv1aHyXIj8puRYYoQb9cULvfvIhsUAT8gRIysHdhgC/FeN0bL47L1d3vgRvrS52LclpprmznPCF+KWvHJ6mmLLN5J7tagIBOTGG7EU6qJjePRNtzxhFEREyjv4YFHjgKiSV3emafm1Wl78bhkJXg8AmXsUERxHwrityaI9dYbTOzZ0vBZtdpZU56JFcC1pV9klhDzXwncWS4lTYoSocEcP2DGDLe693QEQoSRRacVsWtqwFoS8E2jN2pwpyaAhTKWJPhbXpxqQLPXAbQy8ZNn6HT61l+5IHk6xco+f/ND2yT95e2yODgyQs4kUoU+8xjHnZVWEqRixc2avFBjZ1s9gft8JkjKJEoZ5hyVPMLMB2n3sbXCfZpTgCQMD+Y8ejlLMxnTppKY6eYgSf9HamDODVo6UHjP4jn0KBr7mKRe6imnrvBVKeGJTLDvHu5tRtb8iyaf9Se876Sze2Kr7ZcUaZJ9fUbCUoOUzeRslfPQMNd4HY/YVxYtqRvEXwXbLHCmoNwM=
+  cleanup: false
+  on:
+    tags: true

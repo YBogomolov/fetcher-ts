@@ -13,7 +13,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/YBogomolov/fetcher.git"
+    "url": "git+https://github.com/YBogomolov/fetcher-ts.git"
   },
   "keywords": [
     "fetch",
@@ -24,9 +24,9 @@
   "author": "Yuriy Bogomolov <yuriy.bogomolov@gmail.com>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/YBogomolov/fetcher/issues"
+    "url": "https://github.com/YBogomolov/fetcher-ts/issues"
   },
-  "homepage": "https://github.com/YBogomolov/fetcher#readme",
+  "homepage": "https://github.com/YBogomolov/fetcher-ts#readme",
   "peerDependencies": {
     "cross-fetch": "^3.0.4",
     "fp-ts": "^2.3.1",
