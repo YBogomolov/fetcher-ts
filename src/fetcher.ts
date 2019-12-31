@@ -15,13 +15,11 @@ import { HandlerNotSetError, JsonDeserializationError } from './errors';
 export type Result<Code extends number, A> = { code: Code, payload: A };
 
 type Handled<T, Code extends number> =
-  T extends infer R ? R extends Result<any, any> ? R['code'] extends Code ? never : R : never : never;
+  T extends Result<infer C, infer D> ? C extends Code ? never : Result<C, D> : never;
 
-type Data<T, Code extends number> =
-  T extends infer R ? R extends Result<any, any> ? R['code'] extends Code ? R['payload'] : never : never : never;
+type Data<T, Code extends number> = T extends Result<infer C, infer D> ? C extends Code ? D : never : never;
 
-type Codes<T> =
-  T extends infer R ? R extends Result<any, any> ? R['code'] : never : never;
+type Codes<T> = T extends Result<infer C, any> ? C : never;
 
 type HandlersMap<TResult, To> = Map<
   Codes<TResult>,
