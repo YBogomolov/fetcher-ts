@@ -2,10 +2,14 @@
   "name": "fetcher",
   "version": "1.0.0",
   "description": "REST HTTP client built in functional style",
-  "main": "index.js",
+  "files": [
+    "lib"
+  ],
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
   "scripts": {
     "test": "jest",
-    "build": "tsc"
+    "build": "rm -rf ./lib && tsc --build tsconfig.production.json"
   },
   "repository": {
     "type": "git",
