@@ -30,7 +30,7 @@ type HandlersMap<TResult extends Result<any, any>, To> = Map<
 export type Fetch = typeof fetch;
 
 /**
- * Ftcher – a thin type-safe wrapper around @global fetch API
+ * Fetcher – a thin type-safe wrapper around @global fetch API
  *
  * @export
  * @class Fetcher
