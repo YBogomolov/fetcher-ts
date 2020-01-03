@@ -1,9 +1,11 @@
 import * as E from 'fp-ts/lib/Either';
 import { flow } from 'fp-ts/lib/function';
+import { pipe } from 'fp-ts/lib/pipeable';
+import * as TE from 'fp-ts/lib/TaskEither';
 import * as t from 'io-ts';
 import { failure } from 'io-ts/lib/PathReporter';
 
-import { Fetcher, make } from './fetcher';
+import { Decoder, Fetcher, handleError, jsonDecoder, make } from './fetcher';
 
 const User = t.type({ name: t.string });
 const Users = t.array(User);
@@ -18,42 +20,63 @@ type GetUserResult =
   | { code: 401; payload: [Error, string] }
   | { code: 422; payload: FourTwoTwo };
 
+// helpers:
+
+const decodeError = (errors: t.Errors): Error => new Error(failure(errors).join('\n'));
+
+const handleUsers = (res: Response) => pipe(
+  jsonDecoder(res),
+  TE.chain(
+    flow(
+      Users.decode,
+      E.bimap(decodeError, (payload) => ({ code: 200 as const, payload })),
+      TE.fromEither,
+    ),
+  ),
+);
+
+const headersDecoder: Decoder<Error, FourTwoTwo> =
+  (response) => TE.tryCatch(async () => ({
+    code: +response.headers.get('X-CODE')!,
+    correlationId: response.headers.get('X-CORRELATIONID')!,
+  }), handleError);
+
+const handleFourTwoTwo = (res: Response) => pipe(
+  headersDecoder(res),
+  TE.chain(
+    flow(
+      FourTwoTwo.decode,
+      E.bimap(decodeError, (payload) => ({ code: 422 as const, payload })),
+      TE.fromEither,
+    ),
+  ),
+);
+
+// examples:
+
 const fetcher1: Fetcher<GetUserResult['code'], string, GetUserResult> = make(
   'myurl',
   {},
-  () => E.left<string, GetUserResult>('unexpected error'),
+  () => TE.left<Error, GetUserResult>(new Error('unexpected error')),
 );
+// => Type 'Record<never, Decoder<string, GetUserResult>>' is missing the following properties from type
+// 'Record<200 | 400 | 401 | 422, Decoder<string, GetUserResult>>': 200, 400, 401, 422
 
-const decodeError = (errors: t.Errors): string => failure(errors).join('\n');
-
-const handleUsers = flow(
-  Users.decode,
-  E.bimap(decodeError, (payload) => ({ code: 200 as const, payload })),
-);
-
-const handleFourTwoTwo = flow(
-  FourTwoTwo.decode,
-  E.bimap(decodeError, (payload) => ({ code: 422 as const, payload })),
-);
-
-// partial coverage, fetcher2 is inferred as: Fetcher<200 | 422, string, GetUserResult>
+// fetcher2: Fetcher<200 | 422, Error, GetUserResult>
 const fetcher2 = make(
   'myurl',
   {
     200: handleUsers,
     422: handleFourTwoTwo,
   },
-  () => E.left<string, GetUserResult>('unexpected error'),
+  () => TE.left<Error, GetUserResult>(new Error('unexpected error')),
 );
 
-// you could also specify which statuses should be handled explicitly using
-// a type annotation
-const fetcher3 = make<200 | 422 | 400, string, GetUserResult>('myurl')({
-  fetch,
-  handlers: {
+const fetcher3 = make<200 | 422 | 400, Error, GetUserResult>(
+  'myurl',
+  {
     200: handleUsers,
     422: handleFourTwoTwo,
-    onUnexpectedError: () => E.left('unexpected error'),
-  },
-});
-// ^--- error: Property '400' is missing in type ...
+  }, // => Property '400' is missing in type ...
+  () => E.left('unexpected error'),
+);

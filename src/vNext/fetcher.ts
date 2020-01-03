@@ -1,14 +1,10 @@
-import { Either } from 'fp-ts/lib/Either';
-import { ReaderEither } from 'fp-ts/lib/ReaderEither';
+import { pipe } from 'fp-ts/lib/pipeable';
 import { ReaderTaskEither } from 'fp-ts/lib/ReaderTaskEither';
-
-import { Kleisli } from './kleisli';
+import * as TE from 'fp-ts/lib/TaskEither';
 
 export type Fetch = typeof fetch;
 
-export type Extractor<A> = Kleisli<'Promise', Response, A>;
-export type Decoder<E, A> = ReaderEither<unknown, E, A>;
-export type Processor<E, A> = ReaderEither<Response, E, A>;
+export type Decoder<E, A> = ReaderTaskEither<Response, E, A>;
 
 export type Status =
   | 100 | 101 | 102
@@ -25,48 +21,41 @@ export type FetcherError =
 export interface Fetcher<S extends Status, E, A> {
   readonly input: RequestInfo;
   readonly handlers: Record<S, Decoder<E, A>>;
-  readonly onUnexpectedError: (error: FetcherError) => Either<E, A>;
+  readonly onUnexpectedError: ReaderTaskEither<FetcherError, E, A>;
   readonly init?: RequestInit;
 }
 
 export function make<S extends Status, E, A>(
   input: RequestInfo,
   handlers: Record<S, Decoder<E, A>>,
-  onUnexpectedError: (error: FetcherError) => Either<E, A>,
+  onUnexpectedError: ReaderTaskEither<FetcherError, E, A>,
   init?: RequestInit,
 ): Fetcher<S, E, A> {
   return { input, handlers, onUnexpectedError, init };
 }
 
-export const stringExtractor: Extractor<string> = (response) => response.text();
-export const jsonExtractor: Extractor<unknown> = (response) => response.json();
+export const handleError = (e: unknown) => (e instanceof Error ? e : new Error('unknown error'));
 
-export function toTaskEither<S extends Status, E, A>({
-  input,
-  handlers,
-  onUnexpectedError,
-  init,
-}: Fetcher<S, E, A>): ReaderTaskEither<Fetch, E, A> {
-  return (fetch) => async () => {
-    const isStatus = (s: number): s is S => handlers.hasOwnProperty(s);
+export const stringDecoder: Decoder<Error, string> = (response) => TE.tryCatch(() => response.text(), handleError);
 
-    const response = await fetch(input, init);
-    const status = response.status;
+export const jsonDecoder: Decoder<Error, unknown> = (response) => TE.tryCatch(() => response.json(), handleError);
 
-    if (isStatus(status)) {
-      try {
-        const contentType = response.headers.get('content-type');
-        const body: unknown = contentType?.includes('application/json') !== undefined ?
-          await response.json() :
-          await response.text();
-        const handler = handlers[status];
+export function toTaskEither(fetch: Fetch): <S extends Status, E, A>(fetcher: Fetcher<S, E, A>) => TE.TaskEither<E, A> {
+  return <S extends Status, E, A>(fetcher: Fetcher<S, E, A>) => {
+    const isHandled = (s: number): s is S => fetcher.handlers.hasOwnProperty(s);
 
-        return handler(body);
-      } catch (details) {
-        return onUnexpectedError({ type: 'JsonDeserializationError', details });
-      }
-    } else {
-      return onUnexpectedError({ type: 'HandlerNotSetError', status });
-    }
+    return pipe(
+      TE.rightTask(() => fetch(fetcher.input, fetcher.init)),
+      TE.chain(
+        (response) => {
+          const status = response.status;
+          if (isHandled(status)) {
+            return fetcher.handlers[status](response);
+          } else {
+            return fetcher.onUnexpectedError({ type: 'HandlerNotSetError', status });
+          }
+        },
+      ),
+    );
   };
 }
