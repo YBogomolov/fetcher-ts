@@ -48,7 +48,13 @@ const [n, errors] =
     // In 400 handler we need to handle plain `Error`:
     .handle(400, (err) => err.message)
     // In 422 we need to deal with internal error code and correlation ID:
-    .handle(422, ({ correlationId }) => correlationId, TFourTwoTwo)
+    .handle(
+      422,
+      ({ correlationId }) => correlationId,
+      TFourTwoTwo,
+      // For the sake of brewity I use non-null assertion here; in real code you should check for presence:
+      async (res) => ({ code: +res.headers.get('x-code')!, correlationId: res.headers.get('x-correlation-id')! }),
+    )
     // In 401 handler we get as a response name of permission we lack:
     .handle(401, ([err, permission]) => `You lack ${permission}. Also, ${err.message}`)
     // We CANNOT specify explicit handlers for codes we didn't describe in the `GetUserResult` type:
@@ -101,9 +107,9 @@ type MyMethodResults =
 const fetcher = new Fetcher<MyMethodResults, string>('https://example.com');
 ```
 
-#### .handle(code: number, handler: (data: From) => To, codec?: io.Type<From>): Fetcher<...>
+#### .handle(code: number, handler: (data: From) => To, codec?: io.Type<From>, extractor: (response: Response) => Promise<From>): Fetcher<...>
 
-Register a handler for given `code`. Please note that `code` should be present in the passed to the constructor type parameter:
+Register a handler for given `code`, using optional `extractor` to conver the raw `Response` into target type `From`. Please note that `code` should be present in the passed to the constructor type parameter:
 
 ```ts
 type MyMethodResults = 
