@@ -1,6 +1,6 @@
 {
   "name": "fetcher-ts",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "REST HTTP client built in functional style",
   "files": [
     "lib"
