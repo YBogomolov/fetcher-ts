@@ -20,7 +20,14 @@ import { Fetcher } from '../src/fetcher';
   const [n, errors] = await new Fetcher<GetUserResult, string>('https://example.com')
     .handle(200, (users) => users.map((u) => u.name).join(', '), TUsers)
     .handle(400, (err) => err.message)
-    .handle(422, ({ correlationId }) => correlationId, TFourTwoTwo)
+    .handle(
+      422,
+      ({ code, correlationId }) => `${code}: ${correlationId}`,
+      TFourTwoTwo,
+      // In this case we know that data is in headers and not in boy of the response.
+      // For the sake of brewity I use non-null assertion here; in real code you should check for presence:
+      async (res) => ({ code: +res.headers.get('x-code')!, correlationId: res.headers.get('x-correlation-id')! }),
+    )
     .handle(401, ([err, permission]) => `You lack ${permission}. Also, ${err.message}`)
     .discardRest(() => '42')
     .map((s) => s.length)

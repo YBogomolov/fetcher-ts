@@ -3,7 +3,7 @@ import { identity } from 'fp-ts/lib/function';
 import * as O from 'fp-ts/lib/Option';
 import * as io from 'io-ts';
 
-import { Fetcher } from './fetcher';
+import { Fetcher, textExtractor } from './fetcher';
 
 describe('Fetcher suite', () => {
   it('should handle simple 200 response with text data', async () => {
@@ -81,5 +81,26 @@ describe('Fetcher suite', () => {
       case 'None': return fail('should be Some');
       case 'Some': return expect(errs.value.length).toEqual(1);
     }
+  });
+
+  it('should get data from headers via passed extractor', async () => {
+    type TestMethod =
+      | { code: 200, payload: number }
+      | { code: 400, payload: string };
+
+    const fetchMock = jest.fn(
+      async (_input: RequestInfo, _init?: RequestInit) => new Response(
+        null,
+        { status: 400, headers: { 'x-payload': 'fooo' } },
+      ),
+    );
+
+    const [res, errs] = await new Fetcher<TestMethod, string>('', undefined, fetchMock)
+      .handle(200, (n) => n.toString(), io.number)
+      .handle(400, identity, io.string, async (r) => r.headers.get('x-payload') || 'NOT FOUND')
+      .run();
+
+    expect(res).toStrictEqual('fooo');
+    expect(O.isNone(errs)).toBeTruthy();
   });
 });

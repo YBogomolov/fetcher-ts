@@ -14,6 +14,8 @@ import { HandlerNotSetError, JsonDeserializationError } from './errors';
  */
 export type Result<Code extends number, A> = { code: Code, payload: A };
 
+export type Extractor<TResult, Code extends number> = (response: Response) => Promise<Data<TResult, Code>>;
+
 type Handled<T, Code extends number> =
   T extends Result<infer C, infer D> ? C extends Code ? never : Result<C, D> : never;
 
@@ -21,13 +23,27 @@ type Data<T, Code extends number> = T extends Result<infer C, infer D> ? C exten
 
 type HandlersMap<TResult extends Result<any, any>, To> = Map<
   TResult['code'],
-  [(data: Data<TResult, TResult['code']>) => To, io.Type<Data<TResult, TResult['code']>> | undefined]
+  [
+    (data: Data<TResult, TResult['code']>) => To,
+    io.Type<Data<TResult, TResult['code']>> | undefined,
+    Extractor<TResult, TResult['code']>
+  ]
 >;
 
 /**
  * Fetch type – just for convenience
  */
 export type Fetch = typeof fetch;
+
+export const defaultExtractor = (response: Response) => {
+  const contentType = response.headers.get('content-type');
+
+  return contentType?.includes('application/json') ? response.json() : response.text();
+};
+
+export const jsonExtractor = (response: Response) => response.json();
+
+export const textExtractor = (response: Response) => response.text();
 
 /**
  * Fetcher – a thin type-safe wrapper around @global fetch API
@@ -89,8 +105,9 @@ export class Fetcher<TResult extends Result<any, any>, To> {
     code: Code,
     handler: (data: Data<TResult, Code>) => To,
     codec?: io.Type<Data<TResult, Code>>,
+    extractor: Extractor<TResult, Code> = defaultExtractor,
   ): Fetcher<Handled<TResult, Code>, To> {
-    this.handlers.set(code, [handler, codec]);
+    this.handlers.set(code, [handler, codec, extractor]);
 
     return unsafeCoerce(this);
   }
@@ -134,16 +151,13 @@ export class Fetcher<TResult extends Result<any, any>, To> {
       const response = await this.fetch(this.input, this.init);
 
       const status = response.status as TResult['code'];
-      const pair = this.handlers.get(status);
+      const triplet = this.handlers.get(status);
 
-      if (pair != null) {
-        const [handler, codec] = pair;
+      if (triplet != null) {
+        const [handler, codec, extractor] = triplet;
 
         try {
-          const contentType = response.headers.get('content-type');
-          const body = contentType?.includes('application/json') ?
-            await response.json() :
-            await response.text();
+          const body = await extractor(response);
 
           try {
             if (codec) {
