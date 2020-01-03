@@ -5,7 +5,7 @@ import * as TE from 'fp-ts/lib/TaskEither';
 import * as t from 'io-ts';
 import { failure } from 'io-ts/lib/PathReporter';
 
-import { Decoder, Fetcher, handleError, jsonDecoder, make } from './fetcher';
+import { Decoder, extend, Fetcher, handleError, jsonDecoder, make } from './fetcher';
 
 const User = t.type({ name: t.string });
 const Users = t.array(User);
@@ -71,6 +71,12 @@ const fetcher2 = make(
   },
   () => TE.left<Error, GetUserResult>(new Error('unexpected error')),
 );
+
+// fetcher21: Fetcher<100 | 200 | 400 | 422, Error, GetUserResult>
+const fetcher21 = extend(fetcher2, {
+  400: () => TE.right<Error, GetUserResult>({ code: 400, payload: new Error('aaaaa') }),
+  100: () => TE.left<Error, GetUserResult>(new Error('aaaaaaaa')),
+});
 
 const fetcher3 = make<200 | 422 | 400, Error, GetUserResult>(
   'myurl',

@@ -34,6 +34,18 @@ export function make<S extends Status, E, A>(
   return { input, handlers, onUnexpectedError, init };
 }
 
+export function extend<OldS extends Status, NewS extends Status, E, A>(
+  fetcher: Fetcher<OldS, E, A>,
+  handlers: Record<NewS, Decoder<E, A>>,
+  onUnexpectedError?: ReaderTaskEither<FetcherError, E, A>,
+): Fetcher<OldS | NewS, E, A> {
+  return {
+    ...fetcher,
+    handlers: { ...fetcher.handlers, ...handlers },
+    onUnexpectedError: onUnexpectedError || fetcher.onUnexpectedError,
+  };
+}
+
 export const handleError = (e: unknown) => (e instanceof Error ? e : new Error('unknown error'));
 
 export const stringDecoder: Decoder<Error, string> = (response) => TE.tryCatch(() => response.text(), handleError);
