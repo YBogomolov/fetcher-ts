@@ -1,195 +1,245 @@
-// tslint:disable:no-any
-import { fetch as crossFetch } from 'cross-fetch';
-import { fold } from 'fp-ts/lib/Either';
-import { flow, unsafeCoerce } from 'fp-ts/lib/function';
-import { none, Option, some } from 'fp-ts/lib/Option';
+import { flow, identity } from 'fp-ts/lib/function';
 import { pipe } from 'fp-ts/lib/pipeable';
-import { TaskEither, tryCatch } from 'fp-ts/lib/TaskEither';
-import * as io from 'io-ts';
-
-import { HandlerNotSetError, JsonDeserializationError } from './errors';
-
-/**
- * Result of a fetch request – basically, a pair of code and payload
- */
-export type Result<Code extends number, A> = { code: Code, payload: A };
-
-export type Extractor<TResult, Code extends number> = (response: Response) => Promise<Data<TResult, Code>>;
-
-type Handled<T, Code extends number> =
-  T extends Result<infer C, infer D> ? C extends Code ? never : Result<C, D> : never;
-
-type Data<T, Code extends number> = T extends Result<infer C, infer D> ? C extends Code ? D : never : never;
-
-type HandlersMap<TResult extends Result<any, any>, To> = Map<
-  TResult['code'],
-  [
-    (data: Data<TResult, TResult['code']>) => To,
-    io.Type<Data<TResult, TResult['code']>> | undefined,
-    Extractor<TResult, TResult['code']>
-  ]
->;
+import * as RTE from 'fp-ts/lib/ReaderTaskEither';
+import * as R from 'fp-ts/lib/Record';
+import * as TE from 'fp-ts/lib/TaskEither';
 
 /**
- * Fetch type – just for convenience
+ * Main method of Fetch API:
+ * (input: RequestInfo, init?: RequestInit) => Promise<Response>
  */
 export type Fetch = typeof fetch;
 
-export const defaultExtractor = (response: Response) => {
-  const contentType = response.headers.get('content-type');
-
-  return contentType?.includes('application/json') ? response.json() : response.text();
-};
-
-export const jsonExtractor = (response: Response) => response.json();
-
-export const textExtractor = (response: Response) => response.text();
+/**
+ * Decoder – an async function which takes a @see Response and either fails with `E` or succeeds with `A`.
+ */
+export type Decoder<E, A> = RTE.ReaderTaskEither<Response, E, A>;
 
 /**
- * Fetcher – a thin type-safe wrapper around @global fetch API
+ * A map of decoders per each HTTP status code specified in `S`.
+ * @see Status for list of supported HTTP codes.
+ */
+export type Handlers<S extends Status, E, A> = Record<S, Decoder<E, A>>;
+
+/**
+ * HTTP status code according to IANA registry.
+ * See @external https://www.iana.org/assignments/http-status-codes/http-status-codes.xhtml for full list
+ */
+export type Status =
+  | 100 | 101 | 102 | 103
+  | 200 | 201 | 202 | 203 | 204 | 205 | 206 | 207 | 208 | 226
+  | 300 | 301 | 302 | 303 | 304 | 305 | 306 | 307 | 308
+  | 400 | 401 | 402 | 403 | 404 | 405 | 406 | 407 | 408 | 409 | 410 | 411 | 412 | 413 | 414 | 415 | 416 | 417 | 419
+  | 421 | 422 | 423 | 424 | 425 | 426 | 428 | 429 | 431 | 451
+  | 500 | 501 | 502 | 503 | 504 | 505 | 506 | 507 | 508 | 509 | 510 | 511 | 520 | 521 | 522 | 523 | 524 | 525 | 526;
+
+/**
+ * Fetcher – a value representing data sufficient to make a fetch request.
+ * Does not represent an actual request/response – it's just a value which needs to be interpreted somehow.
+ * @see toTaskEither for an example of such interpretation
  *
  * @export
- * @class Fetcher
- * @template TResult Sum type of a @see Result records
- * @template To Target type the fetched result will be transformed into
- *
- * @example
- *
+ * @interface Fetcher
+ * @template S A sum type of @see Status codes.
+ * @template E Error type – usually `Error`.
+ * @template A Result type – usually some kind of business object.
  */
-export class Fetcher<TResult extends Result<any, any>, To> {
-  private readonly handlers: HandlersMap<TResult, To> = new Map();
-  private restHandler?: () => To = void 0;
-
+export interface Fetcher<S extends Status, E, A> {
   /**
-   * Create a new instance of a Fetcher class
-   * @param {RequestInfo} input Fetch input – either a string or a @see Request instance
-   * @param {RequestInit} [init] Fetch initialization parameters
-   * @param {Fetch} [fetch=crossFetch] (optional) Fetch function override – useful for testing
-   * @memberof Fetcher
-   */
-  constructor(
-    private readonly input: RequestInfo,
-    private readonly init?: RequestInit,
-    private readonly fetch: Fetch = crossFetch,
-  ) { }
-
-  /**
-   * Transform `Fetcher<T, A>` into `Fetcher<T, B>`.
-   * A functor method.
+   * Fetch API request input: either a URL string, or a @external Request object.
    *
-   * @template B Type of the transformation result
-   * @param {(a: To) => B} f Transformation function. Will be applied to all registered handlers.
-   * @returns {Fetcher<TResult, B>} Transformed result
+   * @type {RequestInfo}
    * @memberof Fetcher
    */
-  map<B>(f: (a: To) => B): Fetcher<TResult, B> {
-    for (const [code, [handler, codec]] of this.handlers) {
-      this.handlers.set(code, unsafeCoerce([flow(handler, f), codec]));
-    }
-
-    return unsafeCoerce(this);
-  }
+  readonly input: RequestInfo;
 
   /**
-   * Register a handler for given code
+   * A mapping of HTTP status code (representing server response) to a handler for that code.
    *
-   * @template Code Type-level HTTP code literal – optional, inferrable
-   * @param {Code} code HTTP code. Must be present in `TResult` sum type parameter of @see Fetcher
-   * @param {(data: Data<TResult, Code>) => To} handler Handler for the given code
-   * @param {io.Type<Data<TResult, Code>>} [codec] Optional codec for `To` type, used for validation
-   * @returns {Fetcher<Handled<TResult, Code>, To>} A fetcher will `code` being handled
-   * (so it's not possible to register another handler for it)
+   * @type {Handlers<S, E, A>}
    * @memberof Fetcher
    */
-  handle<Code extends TResult['code']>(
-    code: Code,
-    handler: (data: Data<TResult, Code>) => To,
-    codec?: io.Type<Data<TResult, Code>>,
-    extractor: Extractor<TResult, Code> = defaultExtractor,
-  ): Fetcher<Handled<TResult, Code>, To> {
-    this.handlers.set(code, [handler, codec, extractor]);
-
-    return unsafeCoerce(this);
-  }
+  readonly handlers: Handlers<S, E, A>;
 
   /**
-   * Handle all not handled explicitly response statuses using a provided fallback thunk
+   * Hander for unexpected error – i.e. the one not present in @template S type.
    *
-   * @param {() => To} restHandler Thunk of a `To` type. Will be called if no suitable handles are found
-   * for the response status code
-   * @returns {Fetcher<Handled<TResult, never>, To>} Fetcher with ALL status codes being handled.
-   * Note that you won't be able to add any additional handlers to the chain after a call to this method!
+   * @type {Decoder<E, A>}
    * @memberof Fetcher
    */
-  discardRest(restHandler: () => To): Fetcher<Handled<TResult, never>, To> {
-    this.restHandler = restHandler;
-
-    return unsafeCoerce(this);
-  }
+  readonly onUnexpectedError: Decoder<E, A>;
 
   /**
-   * Convert a `Fetcher<T, A>` into a `TaskEither<Error, [A, Option<Errors>]>`.
+   * Request init object – can contain headers, mode, etc.
+   * See @external RequestInit for the details.
    *
-   * @returns {TaskEither<Error, [To, Option<io.Errors>]>} A `TaskEither` representing this `Fetcher`
+   * @type {RequestInit}
    * @memberof Fetcher
    */
-  toTaskEither(): TaskEither<Error, [To, Option<io.Errors>]> {
-    return tryCatch(
-      () => this.run(),
-      (reason) => reason instanceof Error ? reason : new Error(`Something went wrong, details: ${reason}`),
+  readonly init?: RequestInit;
+}
+
+/**
+ * Construct a new @see Fetcher structure.
+ *
+ * @export
+ * @template S Sum type of HTTP codes the server might respond with.
+ * @template E Error type
+ * @template A Result type
+ * @param {RequestInfo} input Fetch API input parameter – URL string or @external Request object
+ * @param {Handlers<S, E, A>} handlers A mapping of HTTP code to a handler method
+ * @param {Decoder<E, A>} onUnexpectedError Handler for status codes not present in @see S type
+ * @param {RequestInit} [init] (optional) Fetch API init parameter – headers, mode, etc.
+ * @returns {Fetcher<S, E, A>} A @see Fetcher structure
+ */
+export function make<S extends Status, E, A>(
+  input: RequestInfo,
+  handlers: Handlers<S, E, A>,
+  onUnexpectedError: Decoder<E, A>,
+  init?: RequestInit,
+): Fetcher<S, E, A> {
+  return { input, handlers, onUnexpectedError, init };
+}
+
+/**
+ * Transform both error and result types simultaneously.
+ * A @see Bifunctor method.
+ *
+ * @export
+ * @template S Sum type of HTTP status codes
+ * @template E Existing error type
+ * @template A Existing result type
+ * @template G New error type
+ * @template B New result type
+ * @param {(e: E) => G} f Function to transform old error to a new error
+ * @param {(a: A) => B} g Function to transform old result to a new result
+ * @returns {(fetcher: Fetcher<S, E, A>) => Fetcher<S, G, B>} A new @see Fetcher structure
+ */
+export function bimap<S extends Status, E, A, G, B>(
+  f: (e: E) => G,
+  g: (a: A) => B,
+): (fetcher: Fetcher<S, E, A>) => Fetcher<S, G, B> {
+  return (fetcher: Fetcher<S, E, A>) => ({
+    input: fetcher.input,
+    handlers: pipe(fetcher.handlers, R.map(RTE.bimap(f, g))) as Record<S, Decoder<G, B>>,
+    onUnexpectedError: pipe(fetcher.onUnexpectedError, RTE.bimap(f, g)),
+    init: fetcher.init,
+  });
+}
+
+/**
+ * Transform result type, leaving error type intact.
+ * A @see Functor method.
+ *
+ * @export
+ * @template S Sum type of HTTP status codes.
+ * @template E Error type
+ * @template A Existing result type
+ * @template B New result type
+ * @param {(a: A) => B} f Function to transform old result to a new result
+ * @returns {(fetcher: Fetcher<S, E, A>) => Fetcher<S, E, B>} A new @see Fetcher structure
+ */
+export function map<S extends Status, E, A, B>(f: (a: A) => B): (fetcher: Fetcher<S, E, A>) => Fetcher<S, E, B> {
+  return bimap(identity, f);
+}
+
+/**
+ * Transform error type, leaving result type intact.
+ * A @see Bifunctor method.
+ *
+ * @export
+ * @template S Sum type of HTTP status codes.
+ * @template E Existing error type
+ * @template A Result type
+ * @template G New error type
+ * @param {(e: E) => G} g Function to transform old error to a new error
+ * @returns {(fetcher: Fetcher<S, E, A>) => Fetcher<S, G, A>} A new @see Fetcher structure
+ */
+export function mapLeft<S extends Status, E, A, G>(g: (e: E) => G): (fetcher: Fetcher<S, E, A>) => Fetcher<S, G, A> {
+  return bimap(g, identity);
+}
+
+/**
+ * Provide new set of handlers for unhandled HTTP codes, extending the previous fetcher.
+ *
+ * @export
+ * @template OldS Old HTTP status sum type
+ * @template NewS New HTTP status sum type – cannot have overlapping entries with @see OldS
+ * @template E Error type
+ * @template A Result type
+ * @param {Handlers<NewS, E, A>} handlers A mapping of @see NewS HTTP status code to handlers
+ * @returns {((fetcher: Fetcher<OldS, E, A>) => Fetcher<OldS | NewS, E, A>)} A function to map old
+ * @see Fetcher structure to a new one with `OldS | NewS` statuses handled.
+ */
+export function extend<OldS extends Status, NewS extends Exclude<Status, OldS>, E, A>(
+  handlers: Handlers<NewS, E, A>,
+): (fetcher: Fetcher<OldS, E, A>) => Fetcher<OldS | NewS, E, A> {
+  return (fetcher) => ({
+    ...fetcher,
+    handlers: { ...fetcher.handlers, ...handlers },
+  });
+}
+
+/**
+ * A convenience method – extend the existing fetcher and refine its result type at the same time.
+ * @see extend for reference.
+ * @param ab Function to transform the result type from `A` to `B`
+ */
+export const extendWith = <A, B extends A>(ab: (a: A) => B) =>
+  <OldS extends Status, NewS extends Exclude<Status, OldS>, E>(
+    handlers: Handlers<NewS, E, B>,
+  ): (fetcher: Fetcher<OldS, E, A>) => Fetcher<OldS | NewS, E, B> => flow(map(ab), extend(handlers));
+
+/**
+ * A simple generic handler for unknown error.
+ *
+ * @export
+ * @param e Error (anything)
+ */
+export const handleError = (e: unknown) => (e instanceof Error ? e : new Error('unknown error'));
+
+/**
+ * A decoder which extracts response body as string.
+ *
+ * @export
+ * @param response Server @external Response to parse
+ */
+export const stringDecoder: Decoder<Error, string> = (response) => TE.tryCatch(() => response.text(), handleError);
+
+/**
+ * A decoder which extracts response body as JSON.
+ *
+ * @export
+ * @param response Server @external Response to parse
+ */
+export const jsonDecoder: Decoder<Error, unknown> = (response) => TE.tryCatch(() => response.json(), handleError);
+
+/**
+ * Interpret @see Fetcher structure into a @external TaskEither value.
+ *
+ * @export
+ * @template S Sum type of HTTP codes the server might respond with.
+ * @template E Error type
+ * @template A Result type
+ * @param {Fetch} fetch Actual @external Fetch API implementation.
+ * @param {Fetcher<S, E, A>} Fetcher structure which needs to be interpreted.
+ * @returns {<S extends Status, E, A>(fetcher: Fetcher<S, E, A>) => TE.TaskEither<E, A>} Task which could fail with
+ * error of type `E` or succeed with `A`.
+ */
+export function toTaskEither(fetch: Fetch): <S extends Status, E, A>(fetcher: Fetcher<S, E, A>) => TE.TaskEither<E, A> {
+  return <S extends Status, E, A>(fetcher: Fetcher<S, E, A>) => {
+    const isHandled = (s: number): s is S => fetcher.handlers.hasOwnProperty(s);
+
+    return pipe(
+      TE.rightTask(() => fetch(fetcher.input, fetcher.init)),
+      TE.chain(
+        (response) => {
+          const status = response.status;
+          const method = isHandled(status) ? fetcher.handlers[status] : fetcher.onUnexpectedError;
+
+          return method(response);
+        },
+      ),
     );
-  }
-
-  /**
-   * Actually performs @external fetch request and executes and suitable handlers.
-   *
-   * @returns {Promise<[To, Option<io.Errors>]>} A promise of a pair of result and possible validation errors
-   * @memberof Fetcher
-   */
-  async run(): Promise<[To, Option<io.Errors>]> {
-    try {
-      const response = await this.fetch(this.input, this.init);
-
-      const status = response.status as TResult['code'];
-      const triplet = this.handlers.get(status);
-
-      if (triplet != null) {
-        const [handler, codec, extractor] = triplet;
-
-        try {
-          const body = await extractor(response);
-
-          try {
-            if (codec) {
-              return pipe(
-                codec.decode(body),
-                fold(
-                  (errors) => [handler(body), some(errors)],
-                  (res) => [handler(res), none],
-                ),
-              );
-            }
-
-            return [handler(body), none];
-          } catch (error) {
-            return Promise.reject(new Error(`Handler side error, details: ${error}`));
-          }
-        } catch (jsonError) {
-          return Promise.reject(
-            new JsonDeserializationError(`Could not deserialize response JSON, details: ${jsonError}`),
-          );
-        }
-      }
-
-      if (this.restHandler != null) {
-        return [this.restHandler(), none];
-      }
-
-      return Promise.reject(
-        new HandlerNotSetError(`Neither handler for ${status} nor rest handler are set - consider adding \`.handle(${status}, ...)\` or \`.discardRest(() => ...)\` calls to the chain`),
-      );
-    } catch (error) {
-      return Promise.reject(error);
-    }
-  }
+  };
 }

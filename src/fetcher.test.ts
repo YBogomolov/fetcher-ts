@@ -1,4 +1,3 @@
-import { Response } from 'cross-fetch';
 import { identity } from 'fp-ts/lib/function';
 import * as O from 'fp-ts/lib/Option';
 import * as io from 'io-ts';

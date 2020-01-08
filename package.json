@@ -34,7 +34,6 @@
   },
   "devDependencies": {
     "@types/jest": "^24.0.24",
-    "cross-fetch": "^3.0.4",
     "fp-ts": "^2.3.1",
     "io-ts": "^2.0.2",
     "jest": "^24.9.0",
