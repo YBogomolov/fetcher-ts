@@ -11,13 +11,13 @@ import * as TE from 'fp-ts/lib/TaskEither';
 export type Fetch = typeof fetch;
 
 /**
- * Decoder – an async function which takes a @see Response and either fails with `E` or succeeds with `A`.
+ * Decoder – an async function which takes a Response and either fails with `E` or succeeds with `A`.
  */
 export type Decoder<E, A> = RTE.ReaderTaskEither<Response, E, A>;
 
 /**
  * A map of decoders per each HTTP status code specified in `S`.
- * @see Status for list of supported HTTP codes.
+ * Status for list of supported HTTP codes.
  */
 export type Handlers<S extends Status, E, A> = Record<S, Decoder<E, A>>;
 
@@ -36,11 +36,11 @@ export type Status =
 /**
  * Fetcher – a value representing data sufficient to make a fetch request.
  * Does not represent an actual request/response – it's just a value which needs to be interpreted somehow.
- * @see toTaskEither for an example of such interpretation
+ * toTaskEither for an example of such interpretation
  *
  * @export
  * @interface Fetcher
- * @template S A sum type of @see Status codes.
+ * @template S A sum type of Status codes.
  * @template E Error type – usually `Error`.
  * @template A Result type – usually some kind of business object.
  */
@@ -80,7 +80,7 @@ export interface Fetcher<S extends Status, E, A> {
 }
 
 /**
- * Construct a new @see Fetcher structure.
+ * Construct a new Fetcher structure.
  *
  * @export
  * @template S Sum type of HTTP codes the server might respond with.
@@ -88,9 +88,9 @@ export interface Fetcher<S extends Status, E, A> {
  * @template A Result type
  * @param {RequestInfo} input Fetch API input parameter – URL string or @external Request object
  * @param {Handlers<S, E, A>} handlers A mapping of HTTP code to a handler method
- * @param {Decoder<E, A>} onUnexpectedError Handler for status codes not present in @see S type
+ * @param {Decoder<E, A>} onUnexpectedError Handler for status codes not present in S type
  * @param {RequestInit} [init] (optional) Fetch API init parameter – headers, mode, etc.
- * @returns {Fetcher<S, E, A>} A @see Fetcher structure
+ * @returns {Fetcher<S, E, A>} A Fetcher structure
  */
 export function make<S extends Status, E, A>(
   input: RequestInfo,
@@ -103,7 +103,7 @@ export function make<S extends Status, E, A>(
 
 /**
  * Transform both error and result types simultaneously.
- * A @see Bifunctor method.
+ * A Bifunctor method.
  *
  * @export
  * @template S Sum type of HTTP status codes
@@ -113,7 +113,7 @@ export function make<S extends Status, E, A>(
  * @template B New result type
  * @param {(e: E) => G} f Function to transform old error to a new error
  * @param {(a: A) => B} g Function to transform old result to a new result
- * @returns {(fetcher: Fetcher<S, E, A>) => Fetcher<S, G, B>} A new @see Fetcher structure
+ * @returns {(fetcher: Fetcher<S, E, A>) => Fetcher<S, G, B>} A new Fetcher structure
  */
 export function bimap<S extends Status, E, A, G, B>(
   f: (e: E) => G,
@@ -129,7 +129,7 @@ export function bimap<S extends Status, E, A, G, B>(
 
 /**
  * Transform result type, leaving error type intact.
- * A @see Functor method.
+ * A Functor method.
  *
  * @export
  * @template S Sum type of HTTP status codes.
@@ -137,7 +137,7 @@ export function bimap<S extends Status, E, A, G, B>(
  * @template A Existing result type
  * @template B New result type
  * @param {(a: A) => B} f Function to transform old result to a new result
- * @returns {(fetcher: Fetcher<S, E, A>) => Fetcher<S, E, B>} A new @see Fetcher structure
+ * @returns {(fetcher: Fetcher<S, E, A>) => Fetcher<S, E, B>} A new Fetcher structure
  */
 export function map<S extends Status, E, A, B>(f: (a: A) => B): (fetcher: Fetcher<S, E, A>) => Fetcher<S, E, B> {
   return bimap(identity, f);
@@ -145,7 +145,7 @@ export function map<S extends Status, E, A, B>(f: (a: A) => B): (fetcher: Fetche
 
 /**
  * Transform error type, leaving result type intact.
- * A @see Bifunctor method.
+ * A Bifunctor method.
  *
  * @export
  * @template S Sum type of HTTP status codes.
@@ -153,7 +153,7 @@ export function map<S extends Status, E, A, B>(f: (a: A) => B): (fetcher: Fetche
  * @template A Result type
  * @template G New error type
  * @param {(e: E) => G} g Function to transform old error to a new error
- * @returns {(fetcher: Fetcher<S, E, A>) => Fetcher<S, G, A>} A new @see Fetcher structure
+ * @returns {(fetcher: Fetcher<S, E, A>) => Fetcher<S, G, A>} A new Fetcher structure
  */
 export function mapLeft<S extends Status, E, A, G>(g: (e: E) => G): (fetcher: Fetcher<S, E, A>) => Fetcher<S, G, A> {
   return bimap(g, identity);
@@ -164,12 +164,12 @@ export function mapLeft<S extends Status, E, A, G>(g: (e: E) => G): (fetcher: Fe
  *
  * @export
  * @template OldS Old HTTP status sum type
- * @template NewS New HTTP status sum type – cannot have overlapping entries with @see OldS
+ * @template NewS New HTTP status sum type – cannot have overlapping entries with OldS
  * @template E Error type
  * @template A Result type
- * @param {Handlers<NewS, E, A>} handlers A mapping of @see NewS HTTP status code to handlers
+ * @param {Handlers<NewS, E, A>} handlers A mapping of NewS HTTP status code to handlers
  * @returns {((fetcher: Fetcher<OldS, E, A>) => Fetcher<OldS | NewS, E, A>)} A function to map old
- * @see Fetcher structure to a new one with `OldS | NewS` statuses handled.
+ * Fetcher structure to a new one with `OldS | NewS` statuses handled.
  */
 export function extend<OldS extends Status, NewS extends Exclude<Status, OldS>, E, A>(
   handlers: Handlers<NewS, E, A>,
@@ -182,7 +182,7 @@ export function extend<OldS extends Status, NewS extends Exclude<Status, OldS>, 
 
 /**
  * A convenience method – extend the existing fetcher and refine its result type at the same time.
- * @see extend for reference.
+ * extend for reference.
  * @param ab Function to transform the result type from `A` to `B`
  */
 export const extendWith = <A, B extends A>(ab: (a: A) => B) =>
@@ -215,7 +215,7 @@ export const stringDecoder: Decoder<Error, string> = (response) => TE.tryCatch((
 export const jsonDecoder: Decoder<Error, unknown> = (response) => TE.tryCatch(() => response.json(), handleError);
 
 /**
- * Interpret @see Fetcher structure into a @external TaskEither value.
+ * Interpret Fetcher structure into a @external TaskEither value.
  *
  * @export
  * @template S Sum type of HTTP codes the server might respond with.

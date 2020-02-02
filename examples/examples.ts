@@ -2,17 +2,17 @@ import * as E from 'fp-ts/lib/Either';
 import { flow } from 'fp-ts/lib/function';
 import { pipe } from 'fp-ts/lib/pipeable';
 import * as TE from 'fp-ts/lib/TaskEither';
-import * as t from 'io-ts';
+import * as io from 'io-ts';
 import { failure } from 'io-ts/lib/PathReporter';
 
 import { Decoder, extend, Fetcher, handleError, jsonDecoder, make, toTaskEither } from '../src/fetcher';
 
-const User = t.type({ name: t.string });
-const Users = t.array(User);
-const FourTwoTwo = t.type({ code: t.number, correlationId: t.string });
+const User = io.type({ name: io.string });
+const Users = io.array(User);
+const FourTwoTwo = io.type({ code: io.number, correlationId: io.string });
 
-interface User extends t.TypeOf<typeof User> { }
-interface FourTwoTwo extends t.TypeOf<typeof FourTwoTwo> { }
+type User = io.TypeOf<typeof User>;
+type FourTwoTwo = io.TypeOf<typeof FourTwoTwo>;
 
 type GetUserResult =
   | { code: 200; payload: User[] }
@@ -22,7 +22,7 @@ type GetUserResult =
 
 // helpers:
 
-const decodeError = (errors: t.Errors): Error => new Error(failure(errors).join('\n'));
+const decodeError = (errors: io.Errors): Error => new Error(failure(errors).join('\n'));
 
 const handleUsers = (res: Response) => pipe(
   jsonDecoder(res),
@@ -84,7 +84,7 @@ const fetcher21 = pipe(
   }),
 );
 
-const fetcher3 = make<200 | 422 | 400, Error, GetUserResult>(
+const fetcher3 = make<GetUserResult['code'], Error, GetUserResult>(
   'myurl',
   {
     200: handleUsers,

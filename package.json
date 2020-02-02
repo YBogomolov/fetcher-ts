@@ -28,14 +28,13 @@
   },
   "homepage": "https://github.com/YBogomolov/fetcher-ts#readme",
   "peerDependencies": {
-    "cross-fetch": "^3.0.4",
-    "fp-ts": "^2.3.1",
-    "io-ts": "^2.0.2"
+    "fp-ts": "^2.3.1"
   },
   "devDependencies": {
     "@types/jest": "^24.0.24",
+    "cross-fetch": "^3.0.4",
     "fp-ts": "^2.3.1",
-    "io-ts": "^2.0.2",
+    "io-ts": "^2.0.4",
     "jest": "^24.9.0",
     "ts-jest": "^24.2.0",
     "typescript": "^3.7.3"

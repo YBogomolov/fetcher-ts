@@ -4,23 +4,65 @@
 [![Build Status](https://travis-ci.org/YBogomolov/fetcher-ts.svg)](https://travis-ci.org/YBogomolov/fetcher-ts)
 
 ## Motivation
-Aim of this project is to provide a thin type-safe wrapper around [fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API), useful for working with JSON REST APIs.
+Aim of this project is to provide a thin type-safe wrapper around [fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API), useful for working with REST APIs.
 
 ## Installation
 
-```sh
-npm install --save fetcher-ts
-```
-
-As this project is a part of `fp-ts` ecosystem, you'll also need `fp-ts` and `io-ts` as a peer dependencies. And don't forget to install a [cross-fetch](https://github.com/lquixada/cross-fetch) as a peer dependency as well – it provides an isomorphic implementation of `fetch` using `whatwg-fetch` and `node-fetch`:
+The package is available in NPM. As it's a part of `fp-ts` ecosystem, you'll also need `fp-ts` as a peer dependency:
 
 ```sh
-npm install --save fp-ts io-ts cross-fetch
+npm install --save fetcher-ts fp-ts
 ```
+
+**NB:** If you are going to use `fetcher-ts` in a Node environment, make sure you have installed a polyfill/ponyfill for Fetch API.
 
 ## Usage example
 
 Let's dive into an example right away!
+
+Imagine an API for user search, which could respond with the following HTTP codes:
+
+1. 200 – and a list of found users as JSON;
+2. 400 – and an `Error` desciribing what we did wrong;
+3. 401 – and a tuple of `Error` and `string` saying which permission(s) we lack to be able to execute the search;
+4. 422 – and an object with internal code and correlation identifier, describing an error in the underlying system. This information will be transferred in headers part of the response and not in the body.
+
+Let's model those types using `io-ts`, so we could get a nice runtime validation feature for free:
+
+```ts
+import * as io from 'io-ts';
+
+const User = io.type({ name: io.string });
+const Users = io.array(User);
+const FourTwoTwo = io.type({ code: io.number, correlationId: io.string });
+
+type User = io.TypeOf<typeof User>;
+type FourTwoTwo = io.TypeOf<typeof FourTwoTwo>;
+
+type GetUserResult =
+  | { code: 200; payload: User[] }
+  | { code: 400; payload: Error }
+  | { code: 401; payload: [Error, string] }
+  | { code: 422; payload: FourTwoTwo };
+```
+
+Now we can create a `Fetcher` structure to describe the handled response of the search method:
+
+```ts
+import { Decoder, extend, Fetcher, handleError, jsonDecoder, make, toTaskEither } from '../src/fetcher';
+
+const searchFetcher = make(
+  'https://example.com/searchUsers',
+  {
+    200: handleUsers,
+    422: handle422,
+    400: handle400,
+    401: handle401,
+  },
+  () => TE.left<Error, GetUserResult>(new Error('unexpected error')),
+  { mode: 'cors', headers: { Authentication: 'Bearer SOMETOKEN' } },
+);
+```
 
 ```ts
 // This is main business model – basically, any interface serializable to JSON you can imagine

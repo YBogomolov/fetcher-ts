@@ -1,28 +1,52 @@
-import { identity } from 'fp-ts/lib/function';
-import * as O from 'fp-ts/lib/Option';
+import { Response } from 'cross-fetch';
+import * as E from 'fp-ts/lib/Either';
+import { flow } from 'fp-ts/lib/function';
+import { pipe } from 'fp-ts/lib/pipeable';
+import * as TE from 'fp-ts/lib/TaskEither';
 import * as io from 'io-ts';
+import { failure } from 'io-ts/lib/PathReporter';
 
-import { Fetcher, textExtractor } from './fetcher';
+import * as F from './fetcher';
+
+const unexpectedError = () => TE.left(new Error('unexpected error'));
+const decodeError = (errors: io.Errors): Error => new Error(failure(errors).join('\n'));
+const process200 = <T>() => flow(
+  E.bimap(decodeError, (payload: T) => ({ code: 200 as const, payload })),
+  TE.fromEither,
+);
+const process400 = <T>() => flow(
+  E.bimap(decodeError, (payload: T) => ({ code: 400 as const, payload })),
+  TE.fromEither,
+);
 
 describe('Fetcher suite', () => {
   it('should handle simple 200 response with text data', async () => {
-    type TestMethod = { code: 200, payload: string };
     const fetchMock = jest.fn(
       async (_input: RequestInfo, _init?: RequestInit) => new Response('foo', { status: 200 }),
     );
 
-    const [res, errs] = await new Fetcher<TestMethod, string>('', undefined, fetchMock)
-      .handle(200, identity, io.string)
-      .run();
+    const fetcher = F.make(
+      'http://host.tld',
+      {
+        200: flow(F.stringDecoder, TE.chain(flow(io.string.decode, process200()))),
+      },
+      unexpectedError,
+    );
 
-    expect(res).toStrictEqual('foo');
-    expect(O.isNone(errs)).toBeTruthy();
+    pipe(
+      await F.toTaskEither(fetchMock)(fetcher)(),
+      E.fold(
+        fail,
+        ({ code, payload }) => {
+          expect(code).toEqual(200);
+          expect(payload).toEqual('foo');
+        },
+      ),
+    );
   });
 
   it('should handle simple 200 response with JSON data', async () => {
-    type TestData = { foo: string, baz: number };
     const TTestData = io.type({ foo: io.string, baz: io.number });
-    type TestMethod = { code: 200, payload: TestData };
     const TEST_DATA = { foo: 'bar', baz: 42 };
     const fetchMock = jest.fn(
       async (_input: RequestInfo, _init?: RequestInit) => new Response(
@@ -31,12 +55,24 @@ describe('Fetcher suite', () => {
       ),
     );
 
-    const [res, errs] = await new Fetcher<TestMethod, TestData>('', undefined, fetchMock)
-      .handle(200, identity, TTestData)
-      .run();
+    const fetcher = F.make(
+      'http://host.tld',
+      {
+        200: flow(F.jsonDecoder, TE.chain(flow(TTestData.decode, process200()))),
+      },
+      unexpectedError,
+    );
 
-    expect(res).toStrictEqual(TEST_DATA);
-    expect(O.isNone(errs)).toBeTruthy();
+    pipe(
+      await F.toTaskEither(fetchMock)(fetcher)(),
+      E.fold(
+        fail,
+        ({ code, payload }) => {
+          expect(code).toEqual(200);
+          expect(payload).toStrictEqual(TEST_DATA);
+        },
+      ),
+    );
   });
 
   it('should handle simple 400 response', async () => {
@@ -51,19 +87,29 @@ describe('Fetcher suite', () => {
       ),
     );
 
-    const [res, errs] = await new Fetcher<TestMethod, string>('', undefined, fetchMock)
-      .handle(200, (n) => n.toString(), io.number)
-      .handle(400, identity)
-      .run();
+    const fetcher = F.make<TestMethod['code'], Error, TestMethod>(
+      'http://host.tld',
+      {
+        200: () => fail('should not be 200'),
+        400: flow(F.stringDecoder, TE.chain(flow(io.string.decode, process400()))),
+      },
+      unexpectedError,
+    );
 
-    expect(res).toStrictEqual('fooo');
-    expect(O.isNone(errs)).toBeTruthy();
+    pipe(
+      await F.toTaskEither(fetchMock)(fetcher)(),
+      E.fold(
+        fail,
+        ({ code, payload }) => {
+          expect(code).toEqual(400);
+          expect(payload).toStrictEqual('fooo');
+        },
+      ),
+    );
   });
 
   it('should validate incorrectly shaped responses', async () => {
-    type TestData = { foo: string, baz: number };
     const TTestData = io.type({ foo: io.string, baz: io.number });
-    type TestMethod = { code: 200, payload: TestData };
 
     const fetchMock = jest.fn(
       async (_input: RequestInfo, _init?: RequestInit) => new Response(
@@ -72,17 +118,26 @@ describe('Fetcher suite', () => {
       ),
     );
 
-    const [res, errs] = await new Fetcher<TestMethod, TestData>('', undefined, fetchMock)
-      .handle(200, identity, TTestData)
-      .run();
+    const fetcher = F.make(
+      'http://host.tld',
+      {
+        200: flow(F.jsonDecoder, TE.chain(flow(TTestData.decode, process200()))),
+      },
+      unexpectedError,
+    );
 
-    switch (errs._tag) {
-      case 'None': return fail('should be Some');
-      case 'Some': return expect(errs.value.length).toEqual(1);
-    }
+    pipe(
+      await F.toTaskEither(fetchMock)(fetcher)(),
+      E.fold(
+        (e) => {
+          expect(e.message).toContain('Invalid value "42" supplied to : { foo: string, baz: number }/baz: number');
+        },
+        fail,
+      ),
+    );
   });
 
-  it('should get data from headers via passed extractor', async () => {
+  it('should get data from headers using custom decoder', async () => {
     type TestMethod =
       | { code: 200, payload: number }
       | { code: 400, payload: string };
@@ -94,12 +149,26 @@ describe('Fetcher suite', () => {
       ),
     );
 
-    const [res, errs] = await new Fetcher<TestMethod, string>('', undefined, fetchMock)
-      .handle(200, (n) => n.toString(), io.number)
-      .handle(400, identity, io.string, async (r) => r.headers.get('x-payload') || 'NOT FOUND')
-      .run();
+    const process400Headers = (res: Response) =>
+      async () => E.fromNullable(new Error('Header "x-payload" not found'))(res.headers.get('x-payload'));
+    const fetcher = F.make<TestMethod['code'], Error, TestMethod>(
+      'http://host.tld',
+      {
+        200: () => fail('should not be 200'),
+        400: flow(process400Headers, TE.chain(flow(io.string.decode, process400()))),
+      },
+      unexpectedError,
+    );
 
-    expect(res).toStrictEqual('fooo');
-    expect(O.isNone(errs)).toBeTruthy();
+    pipe(
+      await F.toTaskEither(fetchMock)(fetcher)(),
+      E.fold(
+        fail,
+        ({ code, payload }) => {
+          expect(code).toEqual(400);
+          expect(payload).toStrictEqual('fooo');
+        },
+      ),
+    );
   });
 });
