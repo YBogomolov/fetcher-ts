@@ -83,8 +83,8 @@ export class Fetcher<TResult extends Result<any, any>, To> {
    * @memberof Fetcher
    */
   map<B>(f: (a: To) => B): Fetcher<TResult, B> {
-    for (const [code, [handler, codec]] of this.handlers) {
-      this.handlers.set(code, unsafeCoerce([flow(handler, f), codec]));
+    for (const [code, [handler, codec, extractor]] of this.handlers) {
+      this.handlers.set(code, unsafeCoerce([flow(handler, f), codec, extractor]));
     }
 
     return unsafeCoerce(this);

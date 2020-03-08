@@ -41,7 +41,7 @@ const TUsers = io.array(io.type({ name: io.string }));
 const TFourTwoTwo = io.type({ code: io.number, correlationId: io.string });
 
 const [n, errors] = 
-  // We create an instance of `Fetcher` class and parameterize ith with our response type and final transformation result we want:
+  // We create an instance of `Fetcher` class and parameterize it with our response type and final transformation result we want:
   await new Fetcher<GetUserResult, string>('https://example.com')
     // In 200 handler we need to pass a function from `User[]` to `string`, as specified in `Fetcher` parameters:
     .handle(200, (users) => users.map((u) => u.name).join(', '), TUsers)
