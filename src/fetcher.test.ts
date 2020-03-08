@@ -103,4 +103,22 @@ describe('Fetcher suite', () => {
     expect(res).toStrictEqual('fooo');
     expect(O.isNone(errs)).toBeTruthy();
   });
+
+  it('[#6] Map should preserve structure', async () => {
+    type TestMethod = { code: 200, payload: string };
+
+    const fetchMock = jest.fn(
+      async (_input: RequestInfo, _init?: RequestInit) => new Response(
+        '1234',
+        { status: 200 },
+      ),
+    );
+    const [res, errs] = await new Fetcher<TestMethod, string>('', undefined, fetchMock)
+      .handle(200, identity, io.string)
+      .map((s) => s.length)
+      .run();
+
+    expect(res).toStrictEqual(4);
+    expect(O.isNone(errs)).toBeTruthy();
+  });
 });
