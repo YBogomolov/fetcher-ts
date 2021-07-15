@@ -58,7 +58,8 @@ export const textExtractor = (response: Response) => response.text();
  */
 export class Fetcher<TResult extends Result<any, any>, To> {
   private readonly handlers: HandlersMap<TResult, To> = new Map();
-  private restHandler?: () => To = void 0;
+  private restToHandler?: () => To = void 0;
+  private restErrorHandler?: (response: Response) => Error = void 0;
 
   /**
    * Create a new instance of a Fetcher class
@@ -121,8 +122,23 @@ export class Fetcher<TResult extends Result<any, any>, To> {
    * Note that you won't be able to add any additional handlers to the chain after a call to this method!
    * @memberof Fetcher
    */
-  discardRest(restHandler: () => To): Fetcher<Handled<TResult, never>, To> {
-    this.restHandler = restHandler;
+   discardRestAsTo(restToHandler: () => To): Fetcher<Handled<TResult, never>, To> {
+    this.restToHandler = restToHandler;
+
+    return unsafeCoerce(this);
+  }
+
+  /**
+   * Handle all not handled explicitly response statuses using a provided fallback error thunk
+   *
+   * @param {(Response) => Error} restHandler Thunk of a `Error` type. Will be called if no suitable handles are found
+   * for the response status code
+   * @returns {Fetcher<Handled<TResult, never>, To>} Fetcher with ALL status codes being handled.
+   * Note that you won't be able to add any additional handlers to the chain after a call to this method!
+   * @memberof Fetcher
+   */
+  discardRestAsError(restErrorHandler: (r: Response) => Error): Fetcher<Handled<TResult, never>, To> {
+    this.restErrorHandler = restErrorHandler;
 
     return unsafeCoerce(this);
   }
@@ -181,12 +197,18 @@ export class Fetcher<TResult extends Result<any, any>, To> {
         }
       }
 
-      if (this.restHandler != null) {
-        return [this.restHandler(), none];
+      if (this.restErrorHandler != null) {
+        return Promise.reject(this.restErrorHandler(response));
+      }
+
+      if (this.restToHandler != null) {
+        return [this.restToHandler(), none];
       }
 
       return Promise.reject(
-        new HandlerNotSetError(`Neither handler for ${status} nor rest handler are set - consider adding \`.handle(${status}, ...)\` or \`.discardRest(() => ...)\` calls to the chain`),
+        new HandlerNotSetError(
+          `Neither handler for ${status} nor rest handler are set - consider adding \`.handle(${status}, ...)\` or \`.discardRestAsTo(() => ...)\` \`.discardRestAsError(() => ...)\` calls to the chain`
+        )
       );
     } catch (error) {
       return Promise.reject(error);

@@ -29,7 +29,7 @@ import { Fetcher } from '../src/fetcher';
       async (res) => ({ code: +res.headers.get('x-code')!, correlationId: res.headers.get('x-correlation-id')! }),
     )
     .handle(401, ([err, permission]) => `You lack ${permission}. Also, ${err.message}`)
-    .discardRest(() => '42')
+    .discardRestAsTo(() => '42')
     .map((s) => s.length)
     .run();
 

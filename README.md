@@ -59,8 +59,10 @@ const [n, errors] =
     .handle(401, ([err, permission]) => `You lack ${permission}. Also, ${err.message}`)
     // We CANNOT specify explicit handlers for codes we didn't describe in the `GetUserResult` type:
     // .handle(500, () => `Argument of type '500' is not assignable to parameter of type 'never'`)
-    // However, we can use `discardRest` to specify a "fallback" thunk which will be executed for any codes which are not explicitly handled:
-    .discardRest(() => '42')
+    // However, we can use `discardRestAsTo` to specify a "fallback" thunk of 'To' which will be executed for any codes which are not explicitly handled:
+    .discardRestAsTo(() => '42')
+    // Also we can specify discardRestAsError as a fallback of codes which are not handled. Only one of discards will be executed.
+    // .discardRestAsError(response => new Error(response.statusText))
     // `Fetcher<T, A>` is a functor in `A`, i.e. could be transformed into `Fetcher<T, B>`:
     .map((s) => s.length)
     // Finally, we can use `run` to get a `Promise<[Result, Option<io.Errors>]>`:
@@ -129,9 +131,9 @@ const [result, errors] = await new Fetcher<MyOtherMethod, string>('https://examp
 // If the server responds not with string, an `io-ts` validation error will be present in `errors` (`Some<Errors>`).
 ```
 
-#### .discardRest(restHandler: () => To): Fetcher<...>
+#### .discardRestAsTo(restHandler: () => To): Fetcher<...>
 
-Register a fallback handler for all HTTP status codes not registered explicitly using `.handle()`:
+Register a success fallback handler for all HTTP status codes not registered explicitly using `.handle()`:
 
 ```ts
 type MyMethodResults = 
@@ -139,8 +141,21 @@ type MyMethodResults =
   | { code: 500, payload: Error };
 const fetcher = new Fetcher<MyMethodResults, string>('https://example.com')
   .handle(200, (strings) => string.join(', '))
-  .discardRest(() => 'no way'); // code 500 and any other will be handled by this thunk
+  .discardRestAsTo(() => 'no way'); // code 500 and any other will be handled by this thunk
 ```
+#### .discardRestAsError(restHandler: (response: Response) => Error): Fetcher<...>
+
+Register an error fallback handler for all HTTP status codes not registered explicitly using `.handle()`:
+
+```ts
+type MyMethodResults = 
+  | { code: 200, payload: string[] } 
+  | { code: 500, payload: Error };
+const fetcher = new Fetcher<MyMethodResults, string>('https://example.com')
+  .handle(200, (strings) => string.join(', '))
+  .discardRestAsError(response => new Error(response.statusText)); // code 500 and any other will be handled by this thunk
+```
+
 
 #### run(): Promise<[To, Option<io.Errors>]>
 
@@ -152,7 +167,7 @@ type MyMethodResults =
   | { code: 500, payload: Error };
 const [result, validationErrors] = await new Fetcher<MyMethodResults, string>('https://example.com')
   .handle(200, (strings) => string.join(', '))
-  .discardRest(() => 'no way')
+  .discardRestAsTo(() => 'no way')
   .run(); // => result: string, validationErrors: Option<io.Errors>
 ```
 
